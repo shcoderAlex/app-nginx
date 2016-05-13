@@ -1,0 +1,48 @@
+{{$domain := env "SERVICE_80_NAME"}}
+{{$php := print $domain "_php"}}
+
+server {
+    listen 80;
+    set $path "/var/www{{env "PUBLIC_FOLDER"}}";
+
+    server_name {{ $domain }}.dev {{ $domain }};
+    root $path;
+    set $enterypoint "index.php";
+
+    charset utf-8;
+
+    location / {
+        index index.php index.html;
+        try_files $uri $uri/ /$enterypoint?$args;
+    }
+
+    location ~ \.(js|css|png|jpg|gif|swf|ico|pdf|mov|fla|zip|rar)$ {
+        try_files $uri =404;
+    }
+
+    location ~ \.php {
+        fastcgi_split_path_info  ^(.+\.php)(.*)$;
+
+        set $fsn /$enterypoint;
+        if (-f $document_root$fastcgi_script_name){
+            set $fsn $fastcgi_script_name;
+        }
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For  $proxy_add_x_forwarded_for;
+        
+        {{range service $php }}
+            fastcgi_pass {{.Address}}:{{.Port}};
+        {{end}}
+
+        include fastcgi_params;
+        fastcgi_param SERVER_NAME {{ $domain }}.dev;
+        fastcgi_param SCRIPT_FILENAME  $document_root$fsn;
+
+        fastcgi_param PATH_INFO        $fastcgi_path_info;
+        fastcgi_param PATH_TRANSLATED  $document_root$fsn;
+    }
+
+    location ~ /\.ht {
+        deny  all;
+    }
+}
